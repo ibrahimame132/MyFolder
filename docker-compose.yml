@@ -1,0 +1,63 @@
+services:
+
+  chatmysql:
+    image: mysql:8.0
+    container_name: agent-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: agent
+      MYSQL_USER: devuser
+      MYSQL_PASSWORD: devpass123
+    ports:
+      - "9703:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build :
+      context: ./AIAgentBackend
+    container_name: chatagentbackend
+    ports:
+      - "9702:9702"
+    environment:
+      DB_HOST: mysql
+      DB_USER: devuser
+      DB_PASSWORD: devpass123
+      DB_NAME: agent
+      DB_PORT: 3306
+    depends_on:
+      chatmysql:
+        condition: service_healthy
+    volumes:
+      - /usr/src/app/node_modules  # Avoid overwriting node_modules
+      - ./data:/src/uploads
+
+  agent-python:
+    build:
+      context: ./AgentPythonFlask
+    container_name: agent-python
+    restart: always
+    ports:
+      - "9704:9704"
+    volumes:
+      - ./AgentPythonFlask:/usr/src/app
+      - /usr/src/app/venv          # Virtual environment directory
+      - ./data:/app/uploads
+    environment:
+      FLASK_ENV: development
+    command: >
+      bash -c "pip install -r requirements.txt && python app.py"
+
+  
+
+volumes:
+  mysql-data:
+    driver: local
+  data:
+    driver: local
